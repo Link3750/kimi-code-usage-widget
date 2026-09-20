@@ -117,7 +117,7 @@ def get_stats():
         "days": [
             {"date": k, **v, "total": v["input"] + v["cacheRead"] + v["cacheCreation"] + v["output"]}
             for k, v in sorted(days.items())
-        ][-30:],
+        ],
     }
     _cache["stats"] = (now, result)
     return result
@@ -169,13 +169,26 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "unknown endpoint"}, 404)
 
     def do_GET(self):
-        path = self.path.split("?", 1)[0]
+        path, _, query = self.path.partition("?")
         if path in ("/", "/index.html", "/widget.html"):
             self._send_file(os.path.join(HERE, "widget.html"), "text/html; charset=utf-8")
+        elif path in ("/dashboard", "/dashboard.html"):
+            self._send_file(os.path.join(HERE, "dashboard.html"), "text/html; charset=utf-8")
         elif path == "/api/usage":
             self._send_json(get_usage())
         elif path == "/api/stats":
-            self._send_json(get_stats())
+            # ?days=N 取最近 N 天; days=0 或不传返回全部
+            limit = 0
+            for kv in query.split("&"):
+                if kv.startswith("days="):
+                    try:
+                        limit = int(kv[5:])
+                    except ValueError:
+                        pass
+            result = get_stats()
+            if limit > 0:
+                result = {**result, "days": result["days"][-limit:]}
+            self._send_json(result)
         elif path == "/api/health":
             self._send_json({"ok": True})
         else:

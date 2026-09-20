@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kimi 用量统计</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font: 13px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #0f1114; color: #e6e8eb; padding: 24px;
+    max-width: 980px; margin: 0 auto;
+  }
+  h1 { font-size: 18px; }
+  .sub { color: #8b919c; font-size: 12px; }
+  .card { background: #1c1f26; border: 1px solid #2a2e38; border-radius: 10px; padding: 16px; margin-top: 14px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+  .stat { background: #1c1f26; border: 1px solid #2a2e38; border-radius: 10px; padding: 12px 14px; }
+  .stat .k { color: #8b919c; font-size: 12px; }
+  .stat .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .stat .d { color: #8b919c; font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .bar { height: 8px; background: #2a2e38; border-radius: 4px; overflow: hidden; margin: 8px 0 4px; position: relative; }
+  .bar > div { height: 100%; border-radius: 4px; background: #4f8cff; transition: width .5s; }
+  .bar.warn > div { background: #e8a33d; }
+  .bar.danger > div { background: #e05555; }
+  .bar .pace { position: absolute; top: -1px; bottom: -1px; width: 1px; background: rgba(255,255,255,.55); }
+  .qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .qbox .pct { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  /* 热力图 */
+  .hm { display: flex; gap: 4px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .hm-week { display: flex; flex-direction: column; gap: 4px; }
+  .hm-cell { width: 15px; height: 15px; border-radius: 2px; background: rgba(128,128,128,.12); }
+  .hm-months { display: flex; gap: 3px; font-size: 10px; color: #8b919c; margin-top: 8px; }
+  .hm-months span { width: 19px; flex: none; }
+  .hm-wdays { display: flex; flex-direction: column; gap: 4px; font-size: 10px; color: #8b919c; margin-top: 8px; margin-right: 4px; }
+  .hm-wdays span { height: 15px; line-height: 15px; }
+  .hm-wrap { display: flex; }
+  .legend { display: flex; align-items: center; gap: 3px; font-size: 11px; color: #8b919c; margin-top: 8px; }
+  .legend i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+  /* 柱状图 */
+  .chart { display: flex; align-items: flex-end; gap: 3px; height: 160px; margin-top: 12px; }
+  .col { flex: 1; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; overflow: hidden;
+         background: rgba(128,128,128,.10); min-width: 0; height: 100%; justify-content: flex-end; cursor: default; }
+  .col > div { width: 100%; }
+  .col:hover { outline: 1px solid rgba(255,255,255,.4); }
+  .xlabels { display: flex; gap: 3px; margin-top: 4px; font-size: 9px; color: #8b919c; }
+  .xlabels span { flex: 1; text-align: center; transform: rotate(-40deg); transform-origin: top center; white-space: nowrap; }
+  .range-btns button { background: none; border: 1px solid #2a2e38; color: #8b919c; border-radius: 5px;
+                       font-size: 11px; padding: 2px 10px; margin-left: 6px; cursor: pointer; }
+  .range-btns button.on { background: #4f8cff; border-color: #4f8cff; color: #fff; }
+  .lg { display: inline-flex; gap: 12px; font-size: 11px; color: #8b919c; }
+  .lg i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+  #tip { position: fixed; pointer-events: none; background: #000; border: 1px solid #444; padding: 6px 10px;
+         border-radius: 6px; font-size: 11px; display: none; z-index: 9; white-space: pre; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div><h1>Kimi 用量统计</h1><span class="sub" id="plan"></span></div>
+    <div class="sub" id="updated"></div>
+  </div>
+
+  <div class="card">
+    <div class="qgrid" id="quota"></div>
+  </div>
+
+  <div class="grid4" id="summary"></div>
+
+  <div class="card">
+    <div class="row"><b>每日消耗热力图</b><span class="sub">悬停查看明细</span></div>
+    <div class="hm-wrap">
+      <div class="hm-wdays"><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span>日</span></div>
+      <div style="flex:1;min-width:0">
+        <div class="hm-months" id="hm-months"></div>
+        <div class="hm" id="hm"></div>
+      </div>
+    </div>
+    <div class="legend">少 <i style="background:rgba(128,128,128,.12)"></i><i style="background:rgba(55,181,140,.3)"></i><i style="background:rgba(55,181,140,.55)"></i><i style="background:rgba(55,181,140,.8)"></i><i style="background:rgba(55,205,160,1)"></i> 多</div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <b>每日消耗明细</b>
+      <span class="range-btns">
+        <button data-days="14">14 天</button><button data-days="30" class="on">30 天</button><button data-days="0">全部</button>
+      </span>
+    </div>
+    <div class="chart" id="chart"></div>
+    <div class="xlabels" id="xlabels"></div>
+    <div style="margin-top:26px">
+      <span class="lg"><span><i style="background:#4f8cff"></i>未命中输入</span><span><i style="background:#37b58c"></i>缓存读</span><span><i style="background:#b58c37"></i>缓存写</span><span><i style="background:#9b6fe0"></i>输出</span></span>
+    </div>
+  </div>
+
+  <div id="tip"></div>
+
+<script>
+const $ = (s, el=document) => el.querySelector(s);
+const fmt = n => n == null ? '–' : n >= 1e6 ? (n/1e6).toFixed(2)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : String(Math.round(n));
+const tip = $('#tip');
+function showTip(ev, text) { tip.style.display='block'; tip.style.left=ev.clientX+12+'px'; tip.style.top=ev.clientY+12+'px'; tip.textContent=text; }
+function hideTip() { tip.style.display='none'; }
+
+let DAYS = [];
+
+/* ---------- 额度 ---------- */
+function quotaBox(label, q, winMs) {
+  if (!q) return '';
+  const pct = Math.round((q.usedRatio||0)*1000)/10;
+  const cls = pct >= 95 ? 'danger' : pct >= 80 ? 'warn' : '';
+  let pace = '', resetTxt = '';
+  if (q.resetAt) {
+    const remain = new Date(q.resetAt) - Date.now();
+    const elapsed = 1 - Math.max(0, Math.min(1, remain / winMs));
+    pace = `<div class="pace" style="left:${(elapsed*100).toFixed(1)}%"></div>`;
+    resetTxt = remain > 0 ? `重置 ${new Date(q.resetAt).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} (剩 ${Math.floor(remain/36e5)}h${Math.floor(remain%36e5/6e4)}m)` : '已到重置时间';
+  }
+  return `<div class="qbox"><div class="row"><span class="sub">${label}</span><span class="pct">${pct}%</span></div>
+    <div class="bar ${cls}"><div style="width:${Math.min(100,pct)}%"></div>${pace}</div>
+    <div class="sub">${resetTxt}</div></div>`;
+}
+
+async function loadUsage() {
+  try {
+    const r = await fetch('/api/usage').then(r => r.json());
+    if (!r.ok) return;
+    const u = r.usage?.quota?.usages || {};
+    $('#quota').innerHTML = quotaBox('5 小时额度', u.limit5h, 5*36e5) + quotaBox('本周额度', u.limit7d, 7*864e5);
+    const ui = r.userInfo;
+    if (ui) $('#plan').textContent = `${ui.nickname || ''} · ${ui.userLevelName || ''}`;
+    $('#updated').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+  } catch (e) {}
+}
+
+/* ---------- 汇总卡片 ---------- */
+function sumDays(days) {
+  return days.reduce((a, d) => ({
+    input: a.input + d.input, cacheRead: a.cacheRead + d.cacheRead,
+    cacheCreation: a.cacheCreation + d.cacheCreation, output: a.output + d.output,
+    total: a.total + d.total, turns: a.turns + (d.turns || 0)
+  }), { input:0, cacheRead:0, cacheCreation:0, output:0, total:0, turns:0 });
+}
+function renderSummary() {
+  const todayKey = new Date().toLocaleDateString('sv');
+  const today = DAYS.filter(d => d.date === todayKey);
+  const last7 = DAYS.slice(-7), last30 = DAYS.slice(-30);
+  const cards = [
+    ['今日', sumDays(today)],
+    ['近 7 天', sumDays(last7)],
+    ['近 30 天', sumDays(last30)],
+    ['全部(有记录以来)', sumDays(DAYS)],
+  ];
+  $('#summary').innerHTML = cards.map(([k, s]) =>
+    `<div class="stat"><div class="k">${k}</div><div class="v">${fmt(s.total)}</div>
+     <div class="d">未命中 ${fmt(s.input)} · 缓存读 ${fmt(s.cacheRead)}<br>输出 ${fmt(s.output)} · ${s.turns} 轮</div></div>`).join('');
+}
+
+/* ---------- 热力图 ---------- */
+function heatColor(ratio) {
+  if (ratio <= 0) return 'rgba(128,128,128,.12)';
+  const a = 0.25 + Math.sqrt(ratio) * 0.75;
+  return `rgba(55,181,140,${a.toFixed(2)})`;
+}
+function renderHeatmap() {
+  if (!DAYS.length) return;
+  const map = Object.fromEntries(DAYS.map(d => [d.date, d]));
+  const max = Math.max(...DAYS.map(d => d.total), 1);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const first = new Date(DAYS[0].date + 'T00:00:00');
+  // 对齐到周一
+  const start = new Date(first); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const weeks = [];
+  const months = [];
+  let cur = new Date(start), lastMonth = -1;
+  while (cur <= today) {
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const key = cur.getFullYear() + '-' + String(cur.getMonth()+1).padStart(2,'0') + '-' + String(cur.getDate()).padStart(2,'0');
+      week.push(cur <= today ? { key, date: new Date(cur) } : null);
+      cur.setDate(cur.getDate() + 1);
+    }
+    const m = week[0].date.getMonth();
+    months.push(m !== lastMonth ? (m + 1) + '月' : '');
+    lastMonth = m;
+    weeks.push(week);
+  }
+  $('#hm-months').innerHTML = months.map(m => `<span>${m}</span>`).join('');
+  $('#hm').innerHTML = weeks.map(week => '<div class="hm-week">' + week.map(day => {
+    if (!day) return '<div class="hm-cell" style="background:transparent"></div>';
+    const d = map[day.key];
+    const ratio = d ? d.total / max : 0;
+    const tipText = d
+      ? `${day.key}\n未命中 ${fmt(d.input)} · 缓存读 ${fmt(d.cacheRead)} · 缓存写 ${fmt(d.cacheCreation)} · 输出 ${fmt(d.output)}\n合计 ${fmt(d.total)} · ${d.turns || 0} 轮`
+      : `${day.key}\n无记录`;
+    return `<div class="hm-cell" style="background:${heatColor(ratio)}" data-tip="${tipText.replace(/"/g,'')}"></div>`;
+  }).join('') + '</div>').join('');
+  bindTips('#hm');
+}
+
+/* ---------- 柱状图 ---------- */
+let chartDays = 30;
+const SEGS = [['input','#4f8cff','未命中'],['cacheRead','#37b58c','缓存读'],['cacheCreation','#b58c37','缓存写'],['output','#9b6fe0','输出']];
+function renderChart() {
+  const days = chartDays > 0 ? DAYS.slice(-chartDays) : DAYS;
+  const max = Math.max(...days.map(d => d.total), 1);
+  $('#chart').innerHTML = days.map(d => {
+    const inner = SEGS.map(s => {
+      const h = d.total > 0 ? (d[s[0]] / max * 100) : 0;
+      return h > 0.3 ? `<div style="height:${h}%;background:${s[1]}"></div>` : '';
+    }).join('');
+    const tipText = `${d.date}\n未命中 ${fmt(d.input)} · 缓存读 ${fmt(d.cacheRead)} · 缓存写 ${fmt(d.cacheCreation)} · 输出 ${fmt(d.output)}\n合计 ${fmt(d.total)} · ${d.turns || 0} 轮`;
+    return `<div class="col" data-tip="${tipText.replace(/"/g,'')}">${inner}</div>`;
+  }).join('');
+  $('#xlabels').innerHTML = days.map((d, i) =>
+    `<span>${(days.length <= 31 || i % Math.ceil(days.length/30) === 0) ? d.date.slice(5) : ''}</span>`).join('');
+  bindTips('#chart');
+}
+document.querySelectorAll('.range-btns button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.range-btns button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  chartDays = parseInt(b.dataset.days);
+  renderChart();
+}));
+
+function bindTips(scope) {
+  document.querySelectorAll(scope + ' [data-tip]').forEach(elm => {
+    elm.addEventListener('mousemove', ev => showTip(ev, elm.dataset.tip));
+    elm.addEventListener('mouseleave', hideTip);
+  });
+}
+
+/* ---------- 加载 ---------- */
+async function loadStats() {
+  try {
+    const r = await fetch('/api/stats?days=0').then(r => r.json());
+    if (!r.ok) return;
+    DAYS = r.days || [];
+    renderSummary();
+    renderHeatmap();
+    renderChart();
+  } catch (e) {}
+}
+
+loadUsage(); loadStats();
+setInterval(loadUsage, 60000);
+setInterval(loadStats, 300000);
+</script>
+</body>
+</html>

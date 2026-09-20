@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>近 7 天模块 - 设计稿</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #0f1114; padding: 20px; font: 12px/1.45 "Segoe UI", "Microsoft YaHei", sans-serif; }
+  .demo { width: 250px; margin: 0 auto 24px; }
+  .panel { background: #1c1f26; border: 1px solid #2a2e38; border-radius: 10px; padding: 8px 10px; color: #e6e8eb; }
+  .caption { color: #8b919c; font-size: 11px; margin: 0 0 6px 2px; }
+  .caption b { color: #c8cdd5; }
+
+  /* ===== A: 热力方块 ===== */
+  .hm-row { display: flex; gap: 3px; }
+  .hm-cell { flex: 1; aspect-ratio: 1; border-radius: 3px; background: rgba(128,128,128,.12); position: relative; }
+  .hm-cell .d { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                font-size: 9px; color: rgba(255,255,255,.55); }
+  .hm-today { outline: 1.5px solid rgba(255,255,255,.45); }
+  .hm-foot { display: flex; justify-content: space-between; margin-top: 5px; font-size: 11px; color: #8b919c; }
+  .hm-foot b { color: #e6e8eb; }
+  .hm-scale { display: inline-flex; gap: 2px; vertical-align: -2px; margin-left: 4px; }
+  .hm-scale i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+  /* ===== B: 横向堆叠条 ===== */
+  .hb-wrap { margin-top: 2px; }
+  .hb-bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: rgba(128,128,128,.12); }
+  .hb-bar div { height: 100%; }
+  .hb-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 10px; color: #8b919c; }
+  .hb-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; }
+  .hb-legend b { color: #c8cdd5; font-weight: 600; }
+  .hb-head { display: flex; justify-content: space-between; font-size: 11px; color: #8b919c; margin-bottom: 5px; }
+  .hb-head b { color: #e6e8eb; font-size: 12px; }
+
+  /* ===== C: 组合 ===== */
+  .combo .hb-wrap { margin-bottom: 8px; }
+  .combo .hm-row .hm-cell { aspect-ratio: 1.4; }
+</style>
+</head>
+<body>
+
+<!-- 演示数据: 近7天 -->
+<div class="demo">
+  <div class="caption"><b>A · 热力方块</b> — GitHub 风格, 强度看颜色, 高度同现在</div>
+  <div class="panel">
+    <div class="hm-row" id="hm-row"></div>
+    <div class="hm-foot"><span>近 7 天</span><span>今日 <b id="hm-today"></b><span class="hm-scale"><i style="background:rgba(128,128,128,.12)"></i><i style="background:rgba(41,143,120,.5)"></i><i style="background:rgba(46,170,140,.75)"></i><i style="background:rgba(55,205,160,1)"></i></span></span></div>
+  </div>
+</div>
+
+<div class="demo">
+  <div class="caption"><b>B · 横向堆叠条</b> — 今日构成一目了然, 放弃日趋势</div>
+  <div class="panel">
+    <div class="hb-wrap">
+      <div class="hb-head"><span>今日用量构成</span><b id="hb-today"></b></div>
+      <div class="hb-bar" id="hb-bar"></div>
+      <div class="hb-legend" id="hb-legend"></div>
+    </div>
+  </div>
+</div>
+
+<div class="demo">
+  <div class="caption"><b>C · 组合</b> — 今日构成条 + 热力方块趋势, 高约 2.5 行文字</div>
+  <div class="panel combo">
+    <div class="hb-wrap">
+      <div class="hb-head"><span>今日</span><b id="c-today"></b></div>
+      <div class="hb-bar" id="c-bar"></div>
+    </div>
+    <div class="hm-row" id="c-hm-row"></div>
+  </div>
+</div>
+
+<script>
+const days = [
+  { d: '日', total: 3200000,  v: { input: 400000, cacheRead: 2600000, cacheCreation: 0, output: 200000 } },
+  { d: '一', total: 12500000, v: { input: 1500000, cacheRead: 10400000, cacheCreation: 0, output: 600000 } },
+  { d: '二', total: 0,        v: { input: 0, cacheRead: 0, cacheCreation: 0, output: 0 } },
+  { d: '三', total: 45000000, v: { input: 2100000, cacheRead: 41700000, cacheCreation: 0, output: 1200000 } },
+  { d: '四', total: 8900000,  v: { input: 900000, cacheRead: 7700000, cacheCreation: 0, output: 300000 } },
+  { d: '五', total: 22000000, v: { input: 1300000, cacheRead: 20200000, cacheCreation: 0, output: 500000 } },
+  { d: '六', total: 56600000, v: { input: 1600000, cacheRead: 52100000, cacheCreation: 0, output: 290000 } },
+];
+const fmt = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : n;
+const max = Math.max(...days.map(d => d.total));
+const today = days[days.length - 1];
+
+/* A: 热力方块 — 蓝绿渐变强度 */
+function heatColor(ratio) {
+  if (ratio <= 0) return 'rgba(128,128,128,.12)';
+  // 0->暗蓝绿  1->亮绿
+  const r = Math.round(30 + ratio * 25), g = Math.round(70 + ratio * 135), b = Math.round(90 + ratio * 80);
+  const a = 0.35 + ratio * 0.65;
+  return `rgba(${r},${g},${b},${a})`;
+}
+document.getElementById('hm-row').innerHTML = days.map((d, i) => {
+  const ratio = d.total / max;
+  const tip = `${d.d}  合计 ${fmt(d.total)} (未命中 ${fmt(d.v.input)} · 缓存读 ${fmt(d.v.cacheRead)} · 输出 ${fmt(d.v.output)})`;
+  return `<div class="hm-cell ${i === 6 ? 'hm-today' : ''}" style="background:${heatColor(ratio)}" title="${tip}"><span class="d">${d.d}</span></div>`;
+}).join('');
+document.getElementById('hm-today').textContent = fmt(today.total);
+
+/* B: 横向堆叠条 — 今日构成 */
+const cats = [['未命中', '#4f8cff', today.v.input], ['缓存读', '#37b58c', today.v.cacheRead], ['缓存写', '#b58c37', today.v.cacheCreation], ['输出', '#9b6fe0', today.v.output]];
+document.getElementById('hb-bar').innerHTML = cats.map(c =>
+  `<div style="width:${(c[2] / today.total * 100).toFixed(1)}%;background:${c[1]}" title="${c[0]} ${fmt(c[2])}"></div>`).join('');
+document.getElementById('hb-legend').innerHTML = cats.map(c =>
+  `<span><i style="background:${c[1]}"></i>${c[0]} <b>${(c[2] / today.total * 100).toFixed(1)}%</b></span>`).join('');
+document.getElementById('hb-today').textContent = fmt(today.total);
+
+/* C: 组合 */
+document.getElementById('c-bar').innerHTML = document.getElementById('hb-bar').innerHTML;
+document.getElementById('c-today').textContent = fmt(today.total);
+document.getElementById('c-hm-row').innerHTML = days.map((d, i) => {
+  const ratio = d.total / max;
+  return `<div class="hm-cell ${i === 6 ? 'hm-today' : ''}" style="background:${heatColor(ratio)}" title="${d.d} ${fmt(d.total)}"><span class="d">${d.d}</span></div>`;
+}).join('');
+</script>
+
+
+</body>
+</html>

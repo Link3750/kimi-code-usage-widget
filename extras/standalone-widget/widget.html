@@ -123,7 +123,7 @@ async function loadUsage() {
 
 async function loadStats() {
   try {
-    const r = await fetch('/api/stats').then(r => r.json());
+    const r = await fetch('/api/stats?days=30').then(r => r.json());
     if (!r.ok) return;
     const days = r.days || [];
     const today = new Date().toLocaleDateString('sv');
