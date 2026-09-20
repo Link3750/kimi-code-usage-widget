@@ -134,7 +134,7 @@
       var d = new Date(Date.now() - i * 864e5);
       var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       var v = stats[key] || { input: 0, cacheRead: 0, cacheCreation: 0, output: 0 };
-      out.push({ date: key, total: v.input + v.cacheRead + v.cacheCreation + v.output });
+      out.push({ date: key, total: v.input + v.cacheRead + v.cacheCreation + v.output, v: v });
     }
     return out;
   }
@@ -411,8 +411,9 @@
     '.kum-line b{color:var(--color-text-primary,#e6e8eb)}',
     '.kum-hist-row{display:flex;align-items:center;gap:8px;margin-top:6px}',
     '.kum-hist{display:flex;align-items:flex-end;gap:2px;height:16px;flex:1}',
-    '.kum-hist div{flex:1;background:#4f8cff;border-radius:1px;min-height:1px;opacity:.85}',
-    '.kum-hist div.kum-today{background:#37b58c}',
+    '.kum-hist .kum-col{flex:1;display:flex;flex-direction:column-reverse;min-height:1px;border-radius:1px;overflow:hidden}',
+    '.kum-hist .kum-col>div{width:100%}',
+    '.kum-hist .kum-col.kum-today{outline:1px solid rgba(255,255,255,.35)}',
     '.kum-hist-today{font-size:11px;color:#8b919c;white-space:nowrap}',
     '.kum-hist-today b{color:var(--color-text-primary,#e6e8eb)}',
     /* 模块间距 */
@@ -504,9 +505,9 @@
         var hit = totalInput > 0 ? ((tot.inputCacheRead || 0) / totalInput * 100).toFixed(1) + '%' : '–';
         var spd = currentSpeed();
         var cells = [
-          ['入', fmtNum(cur.inputOther), '当前轮输入 tokens(不含缓存)'],
-          ['出', fmtNum(cur.output), '当前轮输出 tokens'],
-          ['缓存', hit, '缓存命中率 = 缓存读 / 总输入(会话累计)'],
+          ['入·未命中', fmtNum(cur.inputOther), '本轮输入: 缓存未命中部分(全价 tokens)'],
+          ['入·缓存读', fmtNum(cur.inputCacheRead), '本轮输入: 缓存命中部分(低价 tokens); 会话累计命中率 ' + hit],
+          ['输出', fmtNum(cur.output), '本轮输出 tokens'],
           ['速率', spd > 0 ? spd.toFixed(0) + 't/s' : '–', '输出速率 = 最近若干 step 的输出 tokens / 模型流式输出耗时']
         ];
         return '<div class="kum-cells">' + cells.map(function (c) {
@@ -524,12 +525,18 @@
         var days = last7Days();
         var max = Math.max.apply(null, [1].concat(days.map(function (d) { return d.total; })));
         var today = days[days.length - 1];
+        var segs = [['input', '#4f8cff', '未命中输入'], ['cacheRead', '#37b58c', '缓存读'], ['cacheCreation', '#b58c37', '缓存写'], ['output', '#9b6fe0', '输出']];
         var bars = days.map(function (d) {
-          var h = Math.max(1, Math.round(d.total / max * 16));
-          return '<div style="height:' + h + 'px" class="' + (d.date === todayStr() ? 'kum-today' : '') + '" title="' + d.date + '  ' + fmtNum(d.total) + ' tokens"></div>';
+          var inner = segs.map(function (s) {
+            var h = d.total > 0 ? Math.round(d.v[s[0]] / max * 16) : 0;
+            return h > 0 ? '<div style="height:' + h + 'px;background:' + s[1] + '"></div>' : '';
+          }).join('');
+          var tip = d.date + '\n未命中 ' + fmtNum(d.v.input) + ' · 缓存读 ' + fmtNum(d.v.cacheRead) +
+            ' · 缓存写 ' + fmtNum(d.v.cacheCreation) + ' · 输出 ' + fmtNum(d.v.output) + '\n合计 ' + fmtNum(d.total);
+          return '<div class="kum-col' + (d.date === todayStr() ? ' kum-today' : '') + '" title="' + esc(tip) + '">' + inner + '</div>';
         }).join('');
         return '<div class="kum-hist-row"><div class="kum-hist">' + bars + '</div>' +
-          '<span class="kum-hist-today" title="自补丁启用起累计">今日 <b>' + fmtNum(today.total) + '</b></span></div>';
+          '<span class="kum-hist-today" title="蓝=未命中 绿=缓存读 棕=缓存写 紫=输出(自补丁启用起累计)">今日 <b>' + fmtNum(today.total) + '</b></span></div>';
       }
     }
     return '';
