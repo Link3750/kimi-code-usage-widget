@@ -111,11 +111,12 @@
 
   /* ================= 历史统计(自积累) ================= */
 
-  var stats = store.get('kum.stats.v1', {});
+  var stats = store.get('kum.stats.v2', {});
+  // v1 的统计因主/子代理差分串扰被高估, 已废弃, 从 v2 重新积累
 
-  function accumulate(sid, total) {
-    var prev = S.lastTotals[sid];
-    S.lastTotals[sid] = total;
+  function accumulate(agentKey, total) {
+    var prev = S.lastTotals[agentKey];
+    S.lastTotals[agentKey] = total;
     if (!prev) return;
     var day = stats[todayStr()] || (stats[todayStr()] = { input: 0, cacheRead: 0, cacheCreation: 0, output: 0 });
     var changed = false;
@@ -124,7 +125,7 @@
         var diff = (total[pair[0]] || 0) - (prev[pair[0]] || 0);
         if (diff > 0) { day[pair[1]] += diff; changed = true; }
       });
-    if (changed) store.set('kum.stats.v1', stats);
+    if (changed) store.set('kum.stats.v2', stats);
   }
 
   function last7Days() {
@@ -295,12 +296,16 @@
     switch (m.type) {
       case 'agent.status.updated': {
         var u = p2.usage;
+        var agentId = p2.agentId || 'main';
         if (u && sessId) {
-          if (!S.sessions[sessId] || !S.sessions[sessId].total) diag('first usage event', sessId.slice(0, 24));
-          var sess = S.sessions[sessId] || (S.sessions[sessId] = {});
-          sess.total = u.total || null;
-          sess.currentTurn = u.currentTurn || null;
-          if (u.total) accumulate(sessId, u.total);
+          var sess = S.sessions[sessId] || (S.sessions[sessId] = { agents: {} });
+          if (!sess.agents) sess.agents = {};
+          sess.agents[agentId] = { total: u.total || null, currentTurn: u.currentTurn || null };
+          // 面板显示主代理的口径
+          var main = sess.agents.main || {};
+          sess.total = main.total || null;
+          sess.currentTurn = main.currentTurn || null;
+          if (u.total) accumulate(sessId + '|' + agentId, u.total);
           render();
         }
         break;
