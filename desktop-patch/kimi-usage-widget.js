@@ -475,19 +475,19 @@
     '.kum-sec .kum-range button{background:none;border:1px solid var(--color-border,#3a3e48);color:#8b919c;',
     'border-radius:4px;font-size:10px;padding:0 6px;margin-left:4px;cursor:pointer;line-height:15px}',
     '.kum-sec .kum-range button.kum-on{background:#4f8cff;border-color:#4f8cff;color:#fff}',
-    '.kum-hm-wrap{display:flex;margin-top:6px}',
-    '.kum-hm-wdays{display:flex;flex-direction:column;gap:2px;font-size:8px;color:#8b919c;margin-right:3px}',
-    '.kum-hm-wdays span{height:10px;line-height:10px}',
-    '.kum-hm{display:flex;gap:2px;overflow-x:auto;padding-bottom:2px;flex:1;min-width:0}',
-    '.kum-hm-week{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}',
-    '.kum-hm-cell{width:100%;height:10px;border-radius:2px;background:rgba(128,128,128,.12)}',
-    '.kum-legend{display:flex;align-items:center;gap:2px;font-size:10px;color:#8b919c;margin-top:5px}',
+    '.kum-hm-wrap{margin-top:6px}',
+    '.kum-hm{display:flex;gap:3px;padding-bottom:2px;flex:1;min-width:0}',
+    '.kum-hm-week{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}',
+    '.kum-hm-cell{width:100%;height:11px;border-radius:2px;background:rgba(128,128,128,.10)}',
+    '.kum-hm-months{display:flex;gap:3px;margin-top:3px;font-size:9px;color:#8b919c}',
+    '.kum-hm-months span{flex:1;min-width:0;overflow:hidden;white-space:nowrap}',
+    '.kum-legend{display:flex;align-items:center;gap:2px;font-size:10px;color:#8b919c;margin-top:6px;justify-content:flex-end}',
     '.kum-legend i{width:8px;height:8px;border-radius:2px;display:inline-block}',
-    '.kum-chart{display:flex;align-items:flex-end;gap:2px;height:80px;margin-top:8px}',
+    '.kum-chart{display:flex;align-items:flex-end;gap:3px;height:80px;margin-top:8px}',
     '.kum-chart .kum-col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;min-width:0;',
-    'border-radius:1px 1px 0 0;background:rgba(128,128,128,.10)}',
+    'border-radius:3px 3px 0 0;background:rgba(128,128,128,.07)}',
     '.kum-chart .kum-col>div{width:100%}',
-    '.kum-xlabels{display:flex;gap:2px;margin-top:3px;font-size:8px;color:#8b919c}',
+    '.kum-xlabels{display:flex;gap:3px;margin-top:4px;font-size:8px;color:#8b919c}',
     '.kum-xlabels span{flex:1;text-align:center;white-space:nowrap;overflow:hidden}',
     /* 宽松密度 */
     '#kum-panel.kum-cozy{padding:12px 14px}',
@@ -657,9 +657,9 @@
   }
 
   function heatColor(r) {
-    if (r <= 0) return 'rgba(128,128,128,.12)';
-    var a = 0.25 + Math.sqrt(r) * 0.75;
-    return 'rgba(55,181,140,' + a.toFixed(2) + ')';
+    if (r <= 0) return 'rgba(128,128,128,.10)';
+    var a = 0.22 + Math.sqrt(r) * 0.78;
+    return 'rgba(79,140,255,' + a.toFixed(2) + ')';
   }
 
   function renderStatsTab() {
@@ -681,17 +681,22 @@
     var cur = new Date(hmStart); cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7)); // 对齐周一
     var today = new Date(); today.setHours(0, 0, 0, 0);
     var weeks = [];
+    var months = [];
+    var lastMonth = -1;
     while (cur <= today) {
       var week = [];
       for (var i = 0; i < 7; i++) {
         week.push(cur <= today ? dateKey(cur) : null);
         cur.setDate(cur.getDate() + 1);
       }
+      var mnum = new Date(week[0] + 'T00:00:00').getMonth();
+      months.push(mnum !== lastMonth ? (mnum + 1) + '月' : '');
+      lastMonth = mnum;
       weeks.push(week);
     }
     var map = {};
     days.forEach(function (d) { map[d.date] = d; });
-    var hm = '<div class="kum-hm-wrap"><div class="kum-hm-wdays"><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span>日</span></div>' +
+    var hm = '<div class="kum-hm-wrap">' +
       '<div class="kum-hm">' + weeks.map(function (week) {
         return '<div class="kum-hm-week">' + week.map(function (key) {
           if (!key) return '<div class="kum-hm-cell" style="background:transparent"></div>';
@@ -703,7 +708,8 @@
           return '<div class="kum-hm-cell" style="background:' + heatColor(ratio) + '" title="' + esc(tip) + '"></div>';
         }).join('') + '</div>';
       }).join('') + '</div></div>' +
-      '<div class="kum-legend">少 <i style="background:rgba(128,128,128,.12)"></i><i style="background:rgba(55,181,140,.3)"></i><i style="background:rgba(55,181,140,.55)"></i><i style="background:rgba(55,181,140,.8)"></i><i style="background:rgba(55,205,160,1)"></i> 多</div>';
+      '<div class="kum-hm-months">' + months.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' +
+      '<div class="kum-legend">少 <i style="background:rgba(128,128,128,.10)"></i><i style="background:rgba(79,140,255,.3)"></i><i style="background:rgba(79,140,255,.55)"></i><i style="background:rgba(79,140,255,.8)"></i><i style="background:rgba(79,140,255,1)"></i> 多</div>';
 
     // 堆叠柱状图: 按日历窗口铺开(含零值日); 全部 = 首个数据日到今天
     var cdays;
