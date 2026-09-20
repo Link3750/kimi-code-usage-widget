@@ -306,14 +306,14 @@
         break;
       }
       case 'turn.step.completed': {
-        if (sessId && sessId === S.focusedSid) {
-          var su = p2.usage || {};
-          var ms = p2.llmStreamDurationMs != null ? p2.llmStreamDurationMs : p2.llmServerDecodeMs;
-          if (su.output > 0 && ms > 0) {
-            S.stepSamples.push({ output: su.output, ms: ms });
-            if (S.stepSamples.length > 30) S.stepSamples.shift();
-            render();
-          }
+        var su = p2.usage || {};
+        var ms = p2.llmStreamDurationMs != null ? p2.llmStreamDurationMs : p2.llmServerDecodeMs;
+        if (!S._stepSeen) { S._stepSeen = true; diag('step event seen', 'sid=' + sessId + ' focused=' + S.focusedSid + ' output=' + su.output + ' ms=' + ms); }
+        if (su.output > 0 && ms > 0) {
+          S.stepSamples.push({ output: su.output, ms: ms });
+          if (S.stepSamples.length > 30) S.stepSamples.shift();
+          if (S.stepSamples.length === 1) diag('first speed sample', (su.output / (ms / 1000)).toFixed(0) + ' t/s');
+          render();
         }
         break;
       }
@@ -754,7 +754,7 @@
 
   function start() {
     S.origin = resolveOrigin();
-    diag('start', 'origin=' + (S.origin || '(null)'));
+    diag('start v4.1', 'origin=' + (S.origin || '(null)') + ' path=' + location.pathname);
     if (!S.origin) {
       buildPanel();
       panel.classList.add('kum-floating');
