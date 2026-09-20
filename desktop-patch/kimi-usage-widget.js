@@ -460,10 +460,14 @@
     '.kum-ghost{position:fixed;pointer-events:none;opacity:.85;z-index:10000;background:var(--color-bg-secondary,#1c1f26);',
     'border:1px solid #4f8cff;border-radius:8px;padding:3px 10px;font-size:11px;color:#e6e8eb}',
     '.kum-drop-indicator{height:2px;background:#4f8cff;margin:2px 0;border-radius:1px}',
-    /* tab 页 */
-    '.kum-tabs{display:flex;gap:2px;margin-top:6px;background:var(--color-bg-tertiary,#2a2e38);border-radius:6px;padding:2px}',
-    '.kum-tabs button{flex:1;background:none;border:none;color:#8b919c;font-size:11px;padding:2px 0;border-radius:5px;cursor:pointer}',
-    '.kum-tabs button.kum-on{background:#4f8cff;color:#fff}',
+    /* tab 页(右侧悬浮箭头导航) */
+    '.kum-nav-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:20;',
+    'background:var(--color-bg-tertiary,#2a2e38);border:1px solid var(--color-border,#3a3e48);',
+    'color:#8b919c;font-size:11px;border-radius:8px;padding:6px 3px;cursor:pointer;opacity:.35;',
+    'transition:opacity .15s,padding .15s;white-space:nowrap;overflow:hidden;max-width:20px;line-height:1}',
+    '.kum-nav-arrow:hover{opacity:1;max-width:60px;padding:6px 8px;color:#e6e8eb}',
+    '.kum-nav-arrow.kum-right{right:2px}',
+    '.kum-nav-arrow.kum-left{left:2px}',
     /* 统计 tab */
     '.kum-sumline{font-size:11px;color:#8b919c;margin-top:8px;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap}',
     '.kum-sumline b{color:var(--color-text-primary,#e6e8eb)}',
@@ -757,17 +761,16 @@
 
     if (!collapsed) {
       html += '<div class="kum-body">' +
-        '<div class="kum-tabs">' +
-        '<button data-tab="main"' + (curTab === 'main' ? ' class="kum-on"' : '') + '>概览</button>' +
-        '<button data-tab="stats"' + (curTab === 'stats' ? ' class="kum-on"' : '') + '>统计</button></div>' +
         '<div class="kum-error" style="display:' + (S.error ? '' : 'none') + '">' + esc(S.error) + '</div>';
       if (curTab === 'stats') {
-        html += renderStatsTab();
+        html += renderStatsTab() +
+          '<button class="kum-nav-arrow kum-left" data-nav="main" title="返回概览">‹<span class="kum-nav-label"> 概览</span></button>';
       } else {
         mainMods.forEach(function (l) {
           html += '<div class="kum-mod" data-mod="' + l.id + '">' + renderModuleBody(l.id) + '</div>';
         });
         if (miniMods.length) html += renderMini();
+        html += '<button class="kum-nav-arrow kum-right" data-nav="stats" title="查看统计">›<span class="kum-nav-label"> 统计</span></button>';
       }
       html += '</div>';
     }
@@ -777,10 +780,10 @@
   }
 
   function bindEvents() {
-    panel.querySelectorAll('[data-tab]').forEach(function (btn) {
+    panel.querySelectorAll('[data-nav]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
-        curTab = btn.dataset.tab;
+        curTab = btn.dataset.nav;
         store.set('kum.tab', curTab);
         render();
       });
