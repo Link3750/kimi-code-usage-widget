@@ -394,6 +394,8 @@
   var collapsed = store.get('kum.collapsed', false);
   var density = store.get('kum.density', 'compact');
   var gearOpen = false;
+  var curTab = store.get('kum.tab', 'main');
+  var chartRange = 30;
 
   var css = [
     '#kum-panel{font:12px/1.45 "Segoe UI","Microsoft YaHei",sans-serif;margin:6px 10px;padding:8px 10px;',
@@ -458,6 +460,31 @@
     '.kum-ghost{position:fixed;pointer-events:none;opacity:.85;z-index:10000;background:var(--color-bg-secondary,#1c1f26);',
     'border:1px solid #4f8cff;border-radius:8px;padding:3px 10px;font-size:11px;color:#e6e8eb}',
     '.kum-drop-indicator{height:2px;background:#4f8cff;margin:2px 0;border-radius:1px}',
+    /* tab 页 */
+    '.kum-tabs{display:flex;gap:2px;margin-top:6px;background:var(--color-bg-tertiary,#2a2e38);border-radius:6px;padding:2px}',
+    '.kum-tabs button{flex:1;background:none;border:none;color:#8b919c;font-size:11px;padding:2px 0;border-radius:5px;cursor:pointer}',
+    '.kum-tabs button.kum-on{background:#4f8cff;color:#fff}',
+    /* 统计 tab */
+    '.kum-sumline{font-size:11px;color:#8b919c;margin-top:8px;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap}',
+    '.kum-sumline b{color:var(--color-text-primary,#e6e8eb)}',
+    '.kum-sec{font-size:11px;color:#8b919c;margin-top:10px;display:flex;justify-content:space-between;align-items:center}',
+    '.kum-sec .kum-range button{background:none;border:1px solid var(--color-border,#3a3e48);color:#8b919c;',
+    'border-radius:4px;font-size:10px;padding:0 6px;margin-left:4px;cursor:pointer;line-height:15px}',
+    '.kum-sec .kum-range button.kum-on{background:#4f8cff;border-color:#4f8cff;color:#fff}',
+    '.kum-hm-wrap{display:flex;margin-top:6px}',
+    '.kum-hm-wdays{display:flex;flex-direction:column;gap:2px;font-size:8px;color:#8b919c;margin-right:3px}',
+    '.kum-hm-wdays span{height:9px;line-height:9px}',
+    '.kum-hm{display:flex;gap:2px;overflow-x:auto;padding-bottom:2px;flex:1;min-width:0}',
+    '.kum-hm-week{display:flex;flex-direction:column;gap:2px}',
+    '.kum-hm-cell{width:9px;height:9px;border-radius:2px;background:rgba(128,128,128,.12);flex:none}',
+    '.kum-legend{display:flex;align-items:center;gap:2px;font-size:10px;color:#8b919c;margin-top:5px}',
+    '.kum-legend i{width:8px;height:8px;border-radius:2px;display:inline-block}',
+    '.kum-chart{display:flex;align-items:flex-end;gap:2px;height:80px;margin-top:8px}',
+    '.kum-chart .kum-col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;min-width:0;',
+    'border-radius:1px 1px 0 0;background:rgba(128,128,128,.10)}',
+    '.kum-chart .kum-col>div{width:100%}',
+    '.kum-xlabels{display:flex;gap:2px;margin-top:3px;font-size:8px;color:#8b919c}',
+    '.kum-xlabels span{flex:1;text-align:center;white-space:nowrap;overflow:hidden}',
     /* 宽松密度 */
     '#kum-panel.kum-cozy{padding:12px 14px}',
     '#kum-panel.kum-cozy .kum-bar{height:8px}',
@@ -602,6 +629,90 @@
       '<div class="kum-gm-foot"><a data-gm-reset>恢复默认布局</a></div></div>';
   }
 
+  /* ---------- 统计 tab ---------- */
+
+  function allDays() {
+    return Object.keys(stats).sort().map(function (k) {
+      var v = stats[k];
+      return { date: k, input: v.input, cacheRead: v.cacheRead, cacheCreation: v.cacheCreation, output: v.output,
+               total: v.input + v.cacheRead + v.cacheCreation + v.output };
+    });
+  }
+
+  function heatColor(r) {
+    if (r <= 0) return 'rgba(128,128,128,.12)';
+    var a = 0.25 + Math.sqrt(r) * 0.75;
+    return 'rgba(55,181,140,' + a.toFixed(2) + ')';
+  }
+
+  function renderStatsTab() {
+    var days = allDays();
+    if (!days.length) return '<div class="kum-line">暂无统计数据, 随着使用自动积累</div>';
+    var max = Math.max.apply(null, [1].concat(days.map(function (d) { return d.total; })));
+    var todayKey = todayStr();
+    var todayT = 0, week7 = 0, all = 0;
+    days.forEach(function (d) {
+      all += d.total;
+      if (d.date === todayKey) todayT = d.total;
+    });
+    days.slice(-7).forEach(function (d) { week7 += d.total; });
+
+    // 热力图(按周列, 周一起始)
+    var map = {};
+    days.forEach(function (d) { map[d.date] = d; });
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var first = new Date(days[0].date + 'T00:00:00');
+    var cur = new Date(first); cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));
+    var weeks = [];
+    while (cur <= today) {
+      var week = [];
+      for (var i = 0; i < 7; i++) {
+        var key = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+        week.push(cur <= today ? key : null);
+        cur.setDate(cur.getDate() + 1);
+      }
+      weeks.push(week);
+    }
+    var hm = '<div class="kum-hm-wrap"><div class="kum-hm-wdays"><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span>日</span></div>' +
+      '<div class="kum-hm">' + weeks.map(function (week) {
+        return '<div class="kum-hm-week">' + week.map(function (key) {
+          if (!key) return '<div class="kum-hm-cell" style="background:transparent"></div>';
+          var d = map[key];
+          var ratio = d ? d.total / max : 0;
+          var tip = key + '\n' + (d
+            ? '未命中 ' + fmtNum(d.input) + ' · 缓存读 ' + fmtNum(d.cacheRead) + ' · 输出 ' + fmtNum(d.output) + '\n合计 ' + fmtNum(d.total)
+            : '无记录');
+          return '<div class="kum-hm-cell" style="background:' + heatColor(ratio) + '" title="' + esc(tip) + '"></div>';
+        }).join('') + '</div>';
+      }).join('') + '</div></div>' +
+      '<div class="kum-legend">少 <i style="background:rgba(128,128,128,.12)"></i><i style="background:rgba(55,181,140,.3)"></i><i style="background:rgba(55,181,140,.55)"></i><i style="background:rgba(55,181,140,.8)"></i><i style="background:rgba(55,205,160,1)"></i> 多</div>';
+
+    // 堆叠柱状图
+    var cdays = chartRange > 0 ? days.slice(-chartRange) : days;
+    var segs = [['output', '#9b6fe0'], ['cacheCreation', '#b58c37'], ['cacheRead', '#37b58c'], ['input', '#4f8cff']];
+    var chart = '<div class="kum-chart">' + cdays.map(function (d) {
+      var inner = segs.map(function (s) {
+        var h = d.total > 0 ? (d[s[0]] / max * 100) : 0;
+        return h > 0.5 ? '<div style="height:' + h + '%;background:' + s[1] + '"></div>' : '';
+      }).join('');
+      var tip = d.date + '\n未命中 ' + fmtNum(d.input) + ' · 缓存读 ' + fmtNum(d.cacheRead) + ' · 缓存写 ' + fmtNum(d.cacheCreation) +
+        ' · 输出 ' + fmtNum(d.output) + '\n合计 ' + fmtNum(d.total);
+      return '<div class="kum-col" title="' + esc(tip) + '">' + inner + '</div>';
+    }).join('') + '</div>' +
+    '<div class="kum-xlabels">' + cdays.map(function (d, i) {
+      var step = Math.max(1, Math.ceil(cdays.length / 10));
+      return '<span>' + (i % step === 0 ? d.date.slice(5) : '') + '</span>';
+    }).join('') + '</div>' +
+    '<div class="kum-legend" style="margin-top:6px"><i style="background:#4f8cff"></i>未命中 <i style="background:#37b58c"></i>缓存读 <i style="background:#b58c37"></i>缓存写 <i style="background:#9b6fe0"></i>输出</div>';
+
+    return '<div class="kum-sumline"><span>今日 <b>' + fmtNum(todayT) + '</b></span><span>7天 <b>' + fmtNum(week7) + '</b></span><span>全部 <b>' + fmtNum(all) + '</b></span></div>' +
+      '<div class="kum-sec"><span>每日热力</span></div>' + hm +
+      '<div class="kum-sec"><span>每日明细</span><span class="kum-range">' +
+      '<button data-range="14"' + (chartRange === 14 ? ' class="kum-on"' : '') + '>14天</button>' +
+      '<button data-range="30"' + (chartRange === 30 ? ' class="kum-on"' : '') + '>30天</button>' +
+      '<button data-range="0"' + (chartRange === 0 ? ' class="kum-on"' : '') + '>全部</button></span></div>' + chart;
+  }
+
   function buildPanel() {
     var style = el('style'); style.textContent = css;
     document.head.appendChild(style);
@@ -630,11 +741,18 @@
 
     if (!collapsed) {
       html += '<div class="kum-body">' +
+        '<div class="kum-tabs">' +
+        '<button data-tab="main"' + (curTab === 'main' ? ' class="kum-on"' : '') + '>概览</button>' +
+        '<button data-tab="stats"' + (curTab === 'stats' ? ' class="kum-on"' : '') + '>统计</button></div>' +
         '<div class="kum-error" style="display:' + (S.error ? '' : 'none') + '">' + esc(S.error) + '</div>';
-      mainMods.forEach(function (l) {
-        html += '<div class="kum-mod" data-mod="' + l.id + '">' + renderModuleBody(l.id) + '</div>';
-      });
-      if (miniMods.length) html += renderMini();
+      if (curTab === 'stats') {
+        html += renderStatsTab();
+      } else {
+        mainMods.forEach(function (l) {
+          html += '<div class="kum-mod" data-mod="' + l.id + '">' + renderModuleBody(l.id) + '</div>';
+        });
+        if (miniMods.length) html += renderMini();
+      }
       html += '</div>';
     }
     html += renderGearMenu();
@@ -643,6 +761,21 @@
   }
 
   function bindEvents() {
+    panel.querySelectorAll('[data-tab]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        curTab = btn.dataset.tab;
+        store.set('kum.tab', curTab);
+        render();
+      });
+    });
+    panel.querySelectorAll('[data-range]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        chartRange = parseInt(btn.dataset.range, 10);
+        render();
+      });
+    });
     $('.kum-collapse-btn', panel).addEventListener('click', function (e) {
       e.stopPropagation();
       collapsed = !collapsed;
