@@ -631,12 +631,25 @@
 
   /* ---------- 统计 tab ---------- */
 
-  function allDays() {
-    return Object.keys(stats).sort().map(function (k) {
-      var v = stats[k];
-      return { date: k, input: v.input, cacheRead: v.cacheRead, cacheCreation: v.cacheCreation, output: v.output,
-               total: v.input + v.cacheRead + v.cacheCreation + v.output };
-    });
+  function dateKey(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // 连续日期序列(空缺日补零): 从 fromDate 到今天
+  function filledDays(fromDate) {
+    var keys = Object.keys(stats).sort();
+    var start = fromDate || (keys[0] ? new Date(keys[0] + 'T00:00:00') : new Date());
+    var end = new Date(); end.setHours(0, 0, 0, 0);
+    var out = [];
+    var d = new Date(start);
+    while (d <= end) {
+      var k = dateKey(d);
+      var v = stats[k] || { input: 0, cacheRead: 0, cacheCreation: 0, output: 0 };
+      out.push({ date: k, input: v.input, cacheRead: v.cacheRead, cacheCreation: v.cacheCreation, output: v.output,
+                 total: v.input + v.cacheRead + v.cacheCreation + v.output });
+      d.setDate(d.getDate() + 1);
+    }
+    return out;
   }
 
   function heatColor(r) {
@@ -646,7 +659,7 @@
   }
 
   function renderStatsTab() {
-    var days = allDays();
+    var days = filledDays();          // 连续日期, 含零值日
     if (!days.length) return '<div class="kum-line">暂无统计数据, 随着使用自动积累</div>';
     var max = Math.max.apply(null, [1].concat(days.map(function (d) { return d.total; })));
     var todayKey = todayStr();
@@ -657,37 +670,38 @@
     });
     days.slice(-7).forEach(function (d) { week7 += d.total; });
 
-    // 热力图(按周列, 周一起始)
-    var map = {};
-    days.forEach(function (d) { map[d.date] = d; });
+    // 热力图: 固定覆盖最近约13周(有更早数据则延伸), 空缺日也占位
+    var dataFirst = days.length ? days[0].date : todayKey;
+    var hmStart = new Date(); hmStart.setHours(0, 0, 0, 0); hmStart.setDate(hmStart.getDate() - 90);
+    if (new Date(dataFirst + 'T00:00:00') < hmStart) hmStart = new Date(dataFirst + 'T00:00:00');
+    var cur = new Date(hmStart); cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7)); // 对齐周一
     var today = new Date(); today.setHours(0, 0, 0, 0);
-    var first = new Date(days[0].date + 'T00:00:00');
-    var cur = new Date(first); cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));
     var weeks = [];
     while (cur <= today) {
       var week = [];
       for (var i = 0; i < 7; i++) {
-        var key = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
-        week.push(cur <= today ? key : null);
+        week.push(cur <= today ? dateKey(cur) : null);
         cur.setDate(cur.getDate() + 1);
       }
       weeks.push(week);
     }
+    var map = {};
+    days.forEach(function (d) { map[d.date] = d; });
     var hm = '<div class="kum-hm-wrap"><div class="kum-hm-wdays"><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span>日</span></div>' +
       '<div class="kum-hm">' + weeks.map(function (week) {
         return '<div class="kum-hm-week">' + week.map(function (key) {
           if (!key) return '<div class="kum-hm-cell" style="background:transparent"></div>';
           var d = map[key];
           var ratio = d ? d.total / max : 0;
-          var tip = key + '\n' + (d
+          var tip = key + '\n' + (d && d.total > 0
             ? '未命中 ' + fmtNum(d.input) + ' · 缓存读 ' + fmtNum(d.cacheRead) + ' · 输出 ' + fmtNum(d.output) + '\n合计 ' + fmtNum(d.total)
-            : '无记录');
+            : '无消耗');
           return '<div class="kum-hm-cell" style="background:' + heatColor(ratio) + '" title="' + esc(tip) + '"></div>';
         }).join('') + '</div>';
       }).join('') + '</div></div>' +
       '<div class="kum-legend">少 <i style="background:rgba(128,128,128,.12)"></i><i style="background:rgba(55,181,140,.3)"></i><i style="background:rgba(55,181,140,.55)"></i><i style="background:rgba(55,181,140,.8)"></i><i style="background:rgba(55,205,160,1)"></i> 多</div>';
 
-    // 堆叠柱状图
+    // 堆叠柱状图: 连续日期, 空缺日显示零值轨道
     var cdays = chartRange > 0 ? days.slice(-chartRange) : days;
     var segs = [['output', '#9b6fe0'], ['cacheCreation', '#b58c37'], ['cacheRead', '#37b58c'], ['input', '#4f8cff']];
     var chart = '<div class="kum-chart">' + cdays.map(function (d) {
@@ -695,8 +709,10 @@
         var h = d.total > 0 ? (d[s[0]] / max * 100) : 0;
         return h > 0.5 ? '<div style="height:' + h + '%;background:' + s[1] + '"></div>' : '';
       }).join('');
-      var tip = d.date + '\n未命中 ' + fmtNum(d.input) + ' · 缓存读 ' + fmtNum(d.cacheRead) + ' · 缓存写 ' + fmtNum(d.cacheCreation) +
-        ' · 输出 ' + fmtNum(d.output) + '\n合计 ' + fmtNum(d.total);
+      var tip = d.date + '\n' + (d.total > 0
+        ? '未命中 ' + fmtNum(d.input) + ' · 缓存读 ' + fmtNum(d.cacheRead) + ' · 缓存写 ' + fmtNum(d.cacheCreation) +
+          ' · 输出 ' + fmtNum(d.output) + '\n合计 ' + fmtNum(d.total)
+        : '无消耗');
       return '<div class="kum-col" title="' + esc(tip) + '">' + inner + '</div>';
     }).join('') + '</div>' +
     '<div class="kum-xlabels">' + cdays.map(function (d, i) {
