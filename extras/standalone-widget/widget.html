@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kimi 用量监控</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font: 13px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #14161a; color: #e6e8eb; padding: 14px;
+    user-select: none;
+  }
+  .card { background: #1c1f26; border: 1px solid #2a2e38; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .title { font-weight: 600; font-size: 13px; }
+  .sub { color: #8b919c; font-size: 11px; }
+  .big { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar { height: 8px; background: #2a2e38; border-radius: 4px; overflow: hidden; margin: 8px 0 6px; }
+  .bar > div { height: 100%; border-radius: 4px; background: #4f8cff; transition: width .5s; }
+  .bar.warn > div { background: #e8a33d; }
+  .bar.danger > div { background: #e05555; }
+  #header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  #header .name { font-weight: 700; font-size: 14px; }
+  #plan { background: #2b3b5e; color: #8db4ff; border-radius: 6px; padding: 1px 8px; font-size: 11px; margin-left: 6px; }
+  #chart { display: flex; align-items: flex-end; gap: 3px; height: 90px; margin-top: 8px; }
+  #chart .col { flex: 1; display: flex; flex-direction: column-reverse; border-radius: 2px; overflow: hidden; min-width: 0; }
+  #chart .seg { width: 100%; }
+  .seg.input { background: #4f8cff; } .seg.cacheRead { background: #37b58c; }
+  .seg.cacheCreation { background: #b58c37; } .seg.output { background: #9b6fe0; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-size: 11px; color: #8b919c; }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+  #err { color: #e05555; font-size: 12px; white-space: pre-wrap; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { background: #1c1f26; border: 1px solid #2a2e38; border-radius: 10px; padding: 10px 12px; }
+  #tip { position: fixed; pointer-events: none; background: #000; border: 1px solid #444; padding: 4px 8px;
+         border-radius: 6px; font-size: 11px; display: none; z-index: 9; }
+</style>
+</head>
+<body>
+  <div id="header">
+    <div><span class="name">Kimi 用量监控</span><span id="plan"></span></div>
+    <div class="sub" id="updated"></div>
+  </div>
+  <div id="err"></div>
+  <div class="card" id="q5h">
+    <div class="row"><span class="title">5 小时额度</span><span class="big" data-pct></span></div>
+    <div class="bar"><div></div></div>
+    <div class="row sub"><span data-reset></span><span data-left></span></div>
+  </div>
+  <div class="card" id="q7d">
+    <div class="row"><span class="title">本周额度</span><span class="big" data-pct></span></div>
+    <div class="bar"><div></div></div>
+    <div class="row sub"><span data-reset></span><span data-left></span></div>
+  </div>
+  <div class="card" id="extra" style="display:none">
+    <div class="row"><span class="title">加油包余额</span><span class="big" data-balance></span></div>
+  </div>
+  <div class="grid">
+    <div class="stat"><div class="sub">今日消耗 tokens</div><div class="big" id="today">–</div></div>
+    <div class="stat"><div class="sub">今日轮次</div><div class="big" id="turns">–</div></div>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <div class="row"><span class="title">近 30 天消耗</span><span class="sub" id="total30"></span></div>
+    <div id="chart"></div>
+    <div class="legend">
+      <span><i style="background:#4f8cff"></i>输入</span>
+      <span><i style="background:#37b58c"></i>缓存读</span>
+      <span><i style="background:#b58c37"></i>缓存写</span>
+      <span><i style="background:#9b6fe0"></i>输出</span>
+    </div>
+  </div>
+  <div id="tip"></div>
+
+<script>
+const $ = (s, el=document) => el.querySelector(s);
+const fmt = n => n >= 1e6 ? (n/1e6).toFixed(2)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : String(n);
+
+function renderQuota(id, q) {
+  const card = $(id);
+  if (!q) { card.style.display = 'none'; return; }
+  const pct = Math.round((q.usedRatio || 0) * 1000) / 10;
+  $('[data-pct]', card).textContent = pct + '%';
+  const bar = $('.bar', card);
+  bar.firstElementChild.style.width = Math.min(100, pct) + '%';
+  bar.className = 'bar' + (pct >= 90 ? ' danger' : pct >= 70 ? ' warn' : '');
+  card.dataset.resetAt = q.resetAt || '';
+}
+
+function tickCountdown() {
+  for (const id of ['#q5h', '#q7d']) {
+    const card = $(id);
+    if (!card.dataset.resetAt) continue;
+    const ms = new Date(card.dataset.resetAt) - Date.now();
+    $('[data-reset]', card).textContent = ms > 0
+      ? '重置倒计时 ' + new Date(card.dataset.resetAt).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})
+      : '已到重置时间';
+    $('[data-left]', card).textContent = ms > 0
+      ? `剩 ${Math.floor(ms/36e5)}h ${Math.floor(ms%36e5/6e4)}m` : '';
+  }
+}
+
+async function loadUsage() {
+  try {
+    const r = await fetch('/api/usage').then(r => r.json());
+    if (!r.ok) { $('#err').textContent = r.error || 'unknown error'; return; }
+    $('#err').textContent = '';
+    const q = r.usage?.quota || {};
+    renderQuota('#q5h', q.usages?.limit5h);
+    renderQuota('#q7d', q.usages?.limit7d);
+    const ex = q.extraUsage;
+    if (ex?.balance?.amountLeft != null) {
+      $('#extra').style.display = '';
+      $('#extra [data-balance]').textContent = '¥' + (ex.balance.amountLeft / 1e8).toFixed(2);
+    }
+    const u = r.userInfo;
+    if (u) $('#plan').textContent = u.userLevelName || '';
+    $('#updated').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+    tickCountdown();
+  } catch (e) { $('#err').textContent = '连接失败: ' + e.message; }
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch('/api/stats').then(r => r.json());
+    if (!r.ok) return;
+    const days = r.days || [];
+    const today = new Date().toLocaleDateString('sv');
+    const t = days.find(d => d.date === today);
+    $('#today').textContent = t ? fmt(t.total) : '0';
+    $('#turns').textContent = t ? t.turns : '0';
+    $('#total30').textContent = '共 ' + fmt(days.reduce((s, d) => s + d.total, 0)) + ' tokens';
+    const max = Math.max(1, ...days.map(d => d.total));
+    const chart = $('#chart'); chart.innerHTML = '';
+    const tip = $('#tip');
+    for (const d of days) {
+      const col = document.createElement('div');
+      col.className = 'col';
+      for (const [key, cls] of [['input','input'],['cacheRead','cacheRead'],['cacheCreation','cacheCreation'],['output','output']]) {
+        const h = d.total ? (d[key] / max * 90) : 0;
+        if (h <= 0) continue;
+        const seg = document.createElement('div');
+        seg.className = 'seg ' + cls;
+        seg.style.height = h + 'px';
+        col.appendChild(seg);
+      }
+      col.onmousemove = ev => {
+        tip.style.display = 'block';
+        tip.style.left = ev.clientX + 12 + 'px'; tip.style.top = ev.clientY + 12 + 'px';
+        tip.textContent = `${d.date}  总 ${fmt(d.total)} (入 ${fmt(d.input)} / 缓读 ${fmt(d.cacheRead)} / 缓写 ${fmt(d.cacheCreation)} / 出 ${fmt(d.output)})  ${d.turns} 轮`;
+      };
+      col.onmouseleave = () => tip.style.display = 'none';
+      chart.appendChild(col);
+    }
+  } catch (e) { /* 忽略,下轮重试 */ }
+}
+
+loadUsage(); loadStats();
+setInterval(loadUsage, 60_000);
+setInterval(loadStats, 300_000);
+setInterval(tickCountdown, 1000);
+</script>
+</body>
+</html>
