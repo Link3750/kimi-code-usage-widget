@@ -77,14 +77,23 @@
     focusedSid: null,
     sessions: {},
     lastTotals: {},
-    speedSamples: [],
-    speed: 0,
+    stepSamples: [],        // [{output, ms}] 逐 step 速率样本(当前会话, 最近 10 条)
     lastTurnMs: null,
     subagents: {},
     context: null,
     wsState: 'init',
     error: ''
   };
+
+  function currentSpeed() {
+    var totalOut = 0, totalMs = 0, counted = 0;
+    for (var i = S.stepSamples.length - 1; i >= 0 && counted < 10; i--) {
+      var s = S.stepSamples[i];
+      if (!s || !s.ms || s.ms < 300) continue;
+      totalOut += s.output; totalMs += s.ms; counted++;
+    }
+    return counted > 0 && totalOut > 0 ? totalOut / (totalMs / 1000) : 0;
+  }
 
   /* ================= origin 解析 ================= */
 
@@ -291,13 +300,20 @@
           var sess = S.sessions[sessId] || (S.sessions[sessId] = {});
           sess.total = u.total || null;
           sess.currentTurn = u.currentTurn || null;
-          if (u.total) {
-            accumulate(sessId, u.total);
-            S.speedSamples.push({ t: Date.now(), output: u.total.output || 0 });
-            var cutoff = Date.now() - 10000;
-            S.speedSamples = S.speedSamples.filter(function (s) { return s.t >= cutoff; });
-          }
+          if (u.total) accumulate(sessId, u.total);
           render();
+        }
+        break;
+      }
+      case 'turn.step.completed': {
+        if (sessId && sessId === S.focusedSid) {
+          var su = p2.usage || {};
+          var ms = p2.llmStreamDurationMs != null ? p2.llmStreamDurationMs : p2.llmServerDecodeMs;
+          if (su.output > 0 && ms > 0) {
+            S.stepSamples.push({ output: su.output, ms: ms });
+            if (S.stepSamples.length > 30) S.stepSamples.shift();
+            render();
+          }
         }
         break;
       }
@@ -324,26 +340,12 @@
     }
   }
 
-  // 速率滑动窗口衰减
-  setInterval(function () {
-    var cutoff = Date.now() - 10000;
-    var before = S.speed;
-    S.speedSamples = S.speedSamples.filter(function (s) { return s.t >= cutoff; });
-    if (S.speedSamples.length >= 2) {
-      var first = S.speedSamples[0], last = S.speedSamples[S.speedSamples.length - 1];
-      var dt = (last.t - first.t) / 1000;
-      S.speed = dt > 0 ? Math.max(0, (last.output - first.output) / dt) : 0;
-    } else {
-      S.speed = 0;
-    }
-    if (Math.abs(before - S.speed) >= 1) render();
-  }, 2000);
-
   function trackRoute() {
     var m = location.pathname.match(/^\/sessions\/([^/?#]+)/);
     var sid = m ? m[1] : null;
     if (sid !== S.focusedSid) {
       S.focusedSid = sid;
+      S.stepSamples = [];
       if (sid && !S.sessions[sid] && S.wsState === 'ok') {
         wsSend({ type: 'subscribe', id: 's' + Date.now(), payload: { session_ids: [sid] } });
       }
@@ -495,11 +497,12 @@
         var tot = (sess && sess.total) || {};
         var totalInput = (tot.inputOther || 0) + (tot.inputCacheRead || 0) + (tot.inputCacheCreation || 0);
         var hit = totalInput > 0 ? ((tot.inputCacheRead || 0) / totalInput * 100).toFixed(1) + '%' : '–';
+        var spd = currentSpeed();
         var cells = [
           ['入', fmtNum(cur.inputOther), '当前轮输入 tokens(不含缓存)'],
           ['出', fmtNum(cur.output), '当前轮输出 tokens'],
           ['缓存', hit, '缓存命中率 = 缓存读 / 总输入(会话累计)'],
-          ['速率', S.speed > 0 ? S.speed.toFixed(0) + 't/s' : '–', '输出 tokens/秒(10 秒滑动窗口)']
+          ['速率', spd > 0 ? spd.toFixed(0) + 't/s' : '–', '输出速率 = 最近若干 step 的输出 tokens / 模型流式输出耗时']
         ];
         return '<div class="kum-cells">' + cells.map(function (c) {
           return '<div class="kum-c" title="' + esc(c[2]) + '"><div class="kum-k">' + c[0] + '</div><div class="kum-v">' + c[1] + '</div></div>';
@@ -533,7 +536,8 @@
       if (S.quota.usages.limit5h) bits.push('5h ' + Math.round(S.quota.usages.limit5h.usedRatio * 100) + '%');
       if (S.quota.usages.limit7d) bits.push('周 ' + Math.round(S.quota.usages.limit7d.usedRatio * 100) + '%');
     }
-    if (S.speed > 0) bits.push(S.speed.toFixed(0) + 't/s');
+    var spd = currentSpeed();
+    if (spd > 0) bits.push(spd.toFixed(0) + 't/s');
     return bits.length ? '<div class="kum-mini">' + bits.map(function (b) { return '<b>' + b + '</b>'; }).join(' · ') + '</div>' : '';
   }
 
