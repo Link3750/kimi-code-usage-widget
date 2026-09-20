@@ -114,6 +114,23 @@
   var stats = store.get('kum.stats.v2', {});
   // v1 的统计因主/子代理差分串扰被高估, 已废弃, 从 v2 重新积累
 
+  // 一次性数据修正: 清除高估的 v1; v2 为空且存在种子文件时回填真实用量
+  function maybeSeedStats() {
+    try { localStorage.removeItem('kum.stats.v1'); } catch (e) {}
+    if (localStorage.getItem('kum.stats.v2') || localStorage.getItem('kum.seeded')) return;
+    try { localStorage.setItem('kum.seeded', '1'); } catch (e) {}
+    fetch('kum-seed.json')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (seed) {
+        if (seed && typeof seed === 'object') {
+          stats = seed;
+          store.set('kum.stats.v2', stats);
+          render();
+        }
+      })
+      .catch(function () {});
+  }
+
   function accumulate(agentKey, total) {
     var prev = S.lastTotals[agentKey];
     S.lastTotals[agentKey] = total;
@@ -767,6 +784,7 @@
   function start() {
     S.origin = resolveOrigin();
     diag('start v4.1', 'origin=' + (S.origin || '(null)') + ' path=' + location.pathname);
+    maybeSeedStats();
     if (!S.origin) {
       buildPanel();
       panel.classList.add('kum-floating');
