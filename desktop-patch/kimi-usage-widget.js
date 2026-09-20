@@ -428,8 +428,8 @@
     '.kum-line b{color:var(--color-text-primary,#e6e8eb)}',
     '.kum-hist-row{display:flex;align-items:center;gap:8px;margin-top:6px}',
     '.kum-hist{display:flex;align-items:flex-end;gap:2px;height:20px;flex:1}',
-    '.kum-hist .kum-col{flex:1;height:100%;display:flex;flex-direction:column-reverse;border-radius:2px;',
-    'background:rgba(128,128,128,.12);overflow:hidden;justify-content:flex-end}',
+    '.kum-hist .kum-col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;border-radius:2px;',
+    'background:rgba(128,128,128,.12);overflow:hidden}',
     '.kum-hist .kum-col>div{width:100%}',
     '.kum-hist .kum-col.kum-today{outline:1px solid rgba(255,255,255,.35)}',
     '.kum-hist-today{font-size:11px;color:#8b919c;white-space:nowrap}',
@@ -543,10 +543,10 @@
         var days = last7Days();
         var max = Math.max.apply(null, [1].concat(days.map(function (d) { return d.total; })));
         var today = days[days.length - 1];
-        var segs = [['input', '#4f8cff'], ['cacheRead', '#37b58c'], ['cacheCreation', '#b58c37'], ['output', '#9b6fe0']];
+        var segs = [['output', '#9b6fe0'], ['cacheCreation', '#b58c37'], ['cacheRead', '#37b58c'], ['input', '#4f8cff']];
         var maxH = density === 'cozy' ? 26 : 20;
         var bars = days.map(function (d) {
-          // 平方根缩放: 小用量日也可读, 同时保持相对高低关系
+          // 平方根缩放: 小用量日也可读, 同时保持相对高低关系; 未命中在底部, 输出在顶部
           var barH = d.total > 0 ? Math.max(2, Math.round(Math.sqrt(d.total / max) * maxH)) : 0;
           var inner = '';
           if (barH > 0) {
