@@ -427,8 +427,9 @@
     '.kum-line{font-size:11px;color:#8b919c;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.kum-line b{color:var(--color-text-primary,#e6e8eb)}',
     '.kum-hist-row{display:flex;align-items:center;gap:8px;margin-top:6px}',
-    '.kum-hist{display:flex;align-items:flex-end;gap:2px;height:16px;flex:1}',
-    '.kum-hist .kum-col{flex:1;display:flex;flex-direction:column-reverse;min-height:1px;border-radius:1px;overflow:hidden}',
+    '.kum-hist{display:flex;align-items:flex-end;gap:2px;height:20px;flex:1}',
+    '.kum-hist .kum-col{flex:1;height:100%;display:flex;flex-direction:column-reverse;border-radius:2px;',
+    'background:rgba(128,128,128,.12);overflow:hidden;justify-content:flex-end}',
     '.kum-hist .kum-col>div{width:100%}',
     '.kum-hist .kum-col.kum-today{outline:1px solid rgba(255,255,255,.35)}',
     '.kum-hist-today{font-size:11px;color:#8b919c;white-space:nowrap}',
@@ -542,12 +543,22 @@
         var days = last7Days();
         var max = Math.max.apply(null, [1].concat(days.map(function (d) { return d.total; })));
         var today = days[days.length - 1];
-        var segs = [['input', '#4f8cff', '未命中输入'], ['cacheRead', '#37b58c', '缓存读'], ['cacheCreation', '#b58c37', '缓存写'], ['output', '#9b6fe0', '输出']];
+        var segs = [['input', '#4f8cff'], ['cacheRead', '#37b58c'], ['cacheCreation', '#b58c37'], ['output', '#9b6fe0']];
+        var maxH = density === 'cozy' ? 26 : 20;
         var bars = days.map(function (d) {
-          var inner = segs.map(function (s) {
-            var h = d.total > 0 ? Math.round(d.v[s[0]] / max * 16) : 0;
-            return h > 0 ? '<div style="height:' + h + 'px;background:' + s[1] + '"></div>' : '';
-          }).join('');
+          // 平方根缩放: 小用量日也可读, 同时保持相对高低关系
+          var barH = d.total > 0 ? Math.max(2, Math.round(Math.sqrt(d.total / max) * maxH)) : 0;
+          var inner = '';
+          if (barH > 0) {
+            var acc = 0;
+            inner = segs.map(function (s, idx) {
+              var h = idx === segs.length - 1
+                ? barH - acc                       // 最后一段吃掉取整误差
+                : Math.round(barH * (d.v[s[0]] || 0) / d.total);
+              acc += h;
+              return h > 0 ? '<div style="height:' + h + 'px;background:' + s[1] + '"></div>' : '';
+            }).join('');
+          }
           var tip = d.date + '\n未命中 ' + fmtNum(d.v.input) + ' · 缓存读 ' + fmtNum(d.v.cacheRead) +
             ' · 缓存写 ' + fmtNum(d.v.cacheCreation) + ' · 输出 ' + fmtNum(d.v.output) + '\n合计 ' + fmtNum(d.total);
           return '<div class="kum-col' + (d.date === todayStr() ? ' kum-today' : '') + '" title="' + esc(tip) + '">' + inner + '</div>';
