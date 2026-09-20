@@ -477,10 +477,10 @@
     '.kum-sec .kum-range button.kum-on{background:#4f8cff;border-color:#4f8cff;color:#fff}',
     '.kum-hm-wrap{display:flex;margin-top:6px}',
     '.kum-hm-wdays{display:flex;flex-direction:column;gap:2px;font-size:8px;color:#8b919c;margin-right:3px}',
-    '.kum-hm-wdays span{height:9px;line-height:9px}',
+    '.kum-hm-wdays span{height:10px;line-height:10px}',
     '.kum-hm{display:flex;gap:2px;overflow-x:auto;padding-bottom:2px;flex:1;min-width:0}',
-    '.kum-hm-week{display:flex;flex-direction:column;gap:2px}',
-    '.kum-hm-cell{width:9px;height:9px;border-radius:2px;background:rgba(128,128,128,.12);flex:none}',
+    '.kum-hm-week{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}',
+    '.kum-hm-cell{width:100%;height:10px;border-radius:2px;background:rgba(128,128,128,.12)}',
     '.kum-legend{display:flex;align-items:center;gap:2px;font-size:10px;color:#8b919c;margin-top:5px}',
     '.kum-legend i{width:8px;height:8px;border-radius:2px;display:inline-block}',
     '.kum-chart{display:flex;align-items:flex-end;gap:2px;height:80px;margin-top:8px}',
@@ -705,8 +705,14 @@
       }).join('') + '</div></div>' +
       '<div class="kum-legend">少 <i style="background:rgba(128,128,128,.12)"></i><i style="background:rgba(55,181,140,.3)"></i><i style="background:rgba(55,181,140,.55)"></i><i style="background:rgba(55,181,140,.8)"></i><i style="background:rgba(55,205,160,1)"></i> 多</div>';
 
-    // 堆叠柱状图: 连续日期, 空缺日显示零值轨道
-    var cdays = chartRange > 0 ? days.slice(-chartRange) : days;
+    // 堆叠柱状图: 按日历窗口铺开(含零值日); 全部 = 首个数据日到今天
+    var cdays;
+    if (chartRange > 0) {
+      var from = new Date(); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - chartRange + 1);
+      cdays = filledDays(from);
+    } else {
+      cdays = days;
+    }
     var segs = [['output', '#9b6fe0'], ['cacheCreation', '#b58c37'], ['cacheRead', '#37b58c'], ['input', '#4f8cff']];
     var chart = '<div class="kum-chart">' + cdays.map(function (d) {
       var inner = segs.map(function (s) {
