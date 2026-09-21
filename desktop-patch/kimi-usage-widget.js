@@ -478,7 +478,7 @@
     '.kum-hm-wrap{margin-top:6px}',
     '.kum-hm{display:flex;gap:3px;padding-bottom:2px;flex:1;min-width:0}',
     '.kum-hm-week{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}',
-    '.kum-hm-cell{width:100%;height:11px;border-radius:2px;background:rgba(128,128,128,.10)}',
+    '.kum-hm-cell{width:100%;aspect-ratio:1/1;border-radius:3px;background:rgba(128,128,128,.10)}',
     '.kum-hm-months{display:flex;gap:3px;margin-top:3px;font-size:9px;color:#8b919c}',
     '.kum-hm-months span{flex:1;min-width:0;overflow:hidden;white-space:nowrap}',
     '.kum-legend{display:flex;align-items:center;gap:2px;font-size:10px;color:#8b919c;margin-top:6px;justify-content:flex-end}',
@@ -674,9 +674,9 @@
     });
     days.slice(-7).forEach(function (d) { week7 += d.total; });
 
-    // 热力图: 固定覆盖最近约13周(有更早数据则延伸), 空缺日也占位
+    // 热力图: 固定覆盖最近约17周(有更早数据则延伸), 空缺日也占位
     var dataFirst = days.length ? days[0].date : todayKey;
-    var hmStart = new Date(); hmStart.setHours(0, 0, 0, 0); hmStart.setDate(hmStart.getDate() - 90);
+    var hmStart = new Date(); hmStart.setHours(0, 0, 0, 0); hmStart.setDate(hmStart.getDate() - 118);
     if (new Date(dataFirst + 'T00:00:00') < hmStart) hmStart = new Date(dataFirst + 'T00:00:00');
     var cur = new Date(hmStart); cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7)); // 对齐周一
     var today = new Date(); today.setHours(0, 0, 0, 0);
