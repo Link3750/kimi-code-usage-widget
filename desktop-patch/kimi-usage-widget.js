@@ -415,9 +415,9 @@
     '.kum-q-top{display:flex;justify-content:space-between;font-size:10px;color:#8b919c;margin-bottom:2px}',
     '.kum-q-top b{color:var(--color-text-primary,#e6e8eb);font-variant-numeric:tabular-nums;font-weight:600}',
     '.kum-bar{height:5px;border-radius:3px;background:var(--color-bg-tertiary,#2a2e38);position:relative;overflow:hidden}',
-    '.kum-bar>div{height:100%;border-radius:3px;background:#4f8cff;transition:width .5s}',
-    '.kum-bar.kum-warn>div{background:#e8a33d}.kum-bar.kum-danger>div{background:#e05555}',
-    '.kum-pace{position:absolute;top:-1px;bottom:-1px;width:1px;background:rgba(255,255,255,.5)}',
+    '.kum-bar>.kum-fill{height:100%;border-radius:3px;background:#4f8cff;transition:width .5s}',
+    '.kum-bar.kum-warn>.kum-fill{background:#e8a33d}.kum-bar.kum-danger>.kum-fill{background:#e05555}',
+    '.kum-pace{position:absolute;top:-1px;bottom:-1px;width:2px;margin-left:-1px;background:rgba(255,255,255,.75);z-index:2}',
     '.kum-chip{display:inline-block;font-size:10px;color:#8b919c;border:1px solid var(--color-border,#2a2e38);',
     'border-radius:6px;padding:0 6px;margin-top:4px}',
     /* 实时: 一行四格 */
@@ -528,7 +528,7 @@
     }
     return '<div class="kum-q" title="' + esc(tip) + '">' +
       '<div class="kum-q-top"><span>' + label + '</span><b>' + pct + '%</b></div>' +
-      '<div class="kum-bar' + cls + '"><div style="width:' + Math.min(100, pct) + '%"></div>' + pace + '</div></div>';
+      '<div class="kum-bar' + cls + '"><div class="kum-fill" style="width:' + Math.min(100, pct) + '%"></div>' + pace + '</div></div>';
   }
 
   function renderModuleBody(id) {
