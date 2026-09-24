@@ -1,8 +1,7 @@
 @echo off
-chcp 65001 >nul
 echo Set ws = CreateObject("Wscript.Shell")> "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\kimi-usage-widget-watcher.vbs"
 echo ws.Run "pythonw.exe ""%~dp0watch-patch.py""", 0, False>> "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\kimi-usage-widget-watcher.vbs"
-echo å·²å†™å…¥å¼€æœºå¯åŠ¨é¡¹
+echo ÒÑĞ´Èë¿ª»úÆô¶¯Ïî
 wscript "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\kimi-usage-widget-watcher.vbs"
-echo ç›‘å¬è¿›ç¨‹å·²å¯åŠ¨,æ—¥å¿—è§ watcher.log
+echo ¼àÌı½ø³ÌÒÑÆô¶¯,ÈÕÖ¾¼û watcher.log
 pause

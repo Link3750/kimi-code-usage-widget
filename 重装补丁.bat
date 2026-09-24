@@ -1,7 +1,6 @@
 @echo off
-chcp 65001 >nul
 cd /d %~dp0
 python patch-desktop.py
 echo.
-echo è¡¥ä¸å·²é‡æ–°æ‰“âˆš,è¯·é‡å¯æ¡Œé¢ç‰ˆ(æˆ–åœ¨å¼€å‘è€…å·¥å…· Console æ‰§è¡Œ location.reload()
+echo ²¹¶¡ÒÑÖØÐÂ´ò,ÇëÖØÆô×ÀÃæ°æ(»òÔÚ¿ª·¢Õß¹¤¾ß Console Ö´ÐÐ location.reload())
 pause
